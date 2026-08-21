@@ -1,0 +1,8 @@
+[project]
+name = "easy-use-anima"
+version = "0.6.1"
+description = "Standalone Anima loader, sampler, and prompt saver with optional Easy-Use integration."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-only" }
+dependencies = ["piexif"]
