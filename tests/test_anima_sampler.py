@@ -147,6 +147,23 @@ class AnimaSamplerTests(unittest.TestCase):
             outputs[0]["loader_settings"]["scheduler"], "custom_scheduler"
         )
 
+    def test_outputs_steps_and_cfg_immediately_before_seed(self):
+        output_types = self.module.AnimaFullKSampler.RETURN_TYPES
+        output_names = self.module.AnimaFullKSampler.RETURN_NAMES
+        steps_index = output_names.index("steps")
+        cfg_index = output_names.index("cfg")
+        seed_index = output_names.index("seed")
+
+        self.assertEqual((steps_index, cfg_index, seed_index), (8, 9, 10))
+        self.assertEqual(output_types[steps_index], "INT")
+        self.assertEqual(output_types[cfg_index], "FLOAT")
+        self.assertEqual(output_types[seed_index], "INT")
+
+        outputs = self._run()["result"]
+        self.assertEqual(outputs[steps_index], 30)
+        self.assertEqual(outputs[cfg_index], 4.5)
+        self.assertEqual(outputs[seed_index], 123)
+
     def test_uses_easy_full_ksampler_inputs(self):
         self.assertEqual(
             self.module.AnimaFullKSampler.INPUT_TYPES(),
@@ -218,9 +235,11 @@ class AnimaSamplerTests(unittest.TestCase):
         self.assertEqual(outputs[0]["samples"], {"samples": "sampled-latent"})
         self.assertEqual(outputs[2], "anima-model")
         self.assertEqual(outputs[5], {"samples": "sampled-latent"})
-        self.assertEqual(outputs[8], 42)
-        self.assertEqual(outputs[9], "custom_sampler")
-        self.assertEqual(outputs[10], "custom_scheduler")
+        self.assertEqual(outputs[8], 25)
+        self.assertEqual(outputs[9], 5.0)
+        self.assertEqual(outputs[10], 42)
+        self.assertEqual(outputs[11], "custom_sampler")
+        self.assertEqual(outputs[12], "custom_scheduler")
         self.assertEqual(captured["model"], "anima-model")
         self.assertEqual(captured["positive"], "positive-conditioning")
         self.assertEqual(captured["negative"], "negative-conditioning")

@@ -34,6 +34,8 @@ class _KSamplerReturnTypes:
             "VAE",
             "CLIP",
             "INT",
+            "FLOAT",
+            "INT",
             comfy.samplers.KSampler.SAMPLERS,
             comfy.samplers.KSampler.SCHEDULERS,
         )
@@ -149,6 +151,8 @@ class AnimaFullKSampler:
         "latent",
         "vae",
         "clip",
+        "steps",
+        "cfg",
         "seed",
         "sampler_name",
         "scheduler",
@@ -160,7 +164,7 @@ class AnimaFullKSampler:
         "Anima full sampler. Uses EasyKSampler (Full) when ComfyUI-Easy-Use is "
         "installed and automatically falls back to ComfyUI core sampling when "
         "it is not. The actual model, sampler, and scheduler are preserved in "
-        "the output pipe."
+        "the output pipe. Steps and CFG are also exposed for metadata saving."
     )
 
     def run(
@@ -253,8 +257,10 @@ class AnimaFullKSampler:
                 "denoise": denoise,
             },
         }
+        outputs = outputs[:9]
         outputs[0] = fixed_pipe
         outputs[2] = used_model
+        outputs[8:8] = (steps, cfg)
         outputs.extend((sampler_name, scheduler))
         return {**result, "result": tuple(outputs)}
 
@@ -377,6 +383,8 @@ class AnimaFullKSampler:
                 sampled_latent,
                 vae,
                 clip,
+                steps,
+                cfg,
                 seed,
                 sampler_name,
                 scheduler,

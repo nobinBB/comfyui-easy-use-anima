@@ -2,7 +2,7 @@
 
 An Anima-focused extension for [ComfyUI](https://github.com/comfyanonymous/ComfyUI), built around the `PIPE_LINE` workflow of [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use).
 
-It provides a separate Anima model/CLIP/VAE loader, an Anima-aware `EasyKSampler (Full)` wrapper, and an Anima version of `SD Prompt Saver`.
+It provides a separate Anima model/CLIP/VAE loader, an Anima-aware `EasyKSampler (Full)` wrapper, an Anima version of `SD Prompt Saver`, a dynamic multiline text utility, and factor-based VAE latent upscaling.
 
 [English](#english) | [日本語版 README](README_JA.md)
 
@@ -53,6 +53,8 @@ This extension does not include or download model files.
 | **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Loads the Anima model, text encoder, VAE, and empty latent, then creates an Easy-Use-compatible pipe. |
 | **EasyKSampler (Full) - Anima** | `EasyUse-Anima/Sampler` | Uses Easy-Use Full sampling when available or ComfyUI core sampling in standalone mode, while preserving model and sampler metadata. |
 | **Anima Prompt Saver** | `EasyUse-Anima` | Saves images with A1111-style parameters and Anima model metadata. |
+| **Dynamic Text Hub** | `EasyUse-Anima/Text` | Dynamically shows 1-20 multiline text boxes and combines them line by line or with a custom delimiter. |
+| **Latent Upscale with VAE (By)** | `EasyUse-Anima/Latent` | Decodes a latent, resizes it by a factor, and re-encodes it with the selected VAE in one node. |
 
 ### EasyLoader (Full) - Anima
 
@@ -88,14 +90,38 @@ Connect `clip` to your preferred Anima-compatible text-encoding nodes, then conn
 
 When ComfyUI-Easy-Use is installed, sampling is delegated to its **EasyKSampler (Full)** to retain the upstream behavior and optional inputs. Without Easy-Use, this node automatically uses ComfyUI's core `common_ksampler`, VAE decoding, Preview Image, and Save Image implementations.
 
-This wrapper adds two changes:
+This wrapper adds three changes:
 
 1. When optional `model` overrides the sampling model, the actual model is written to both `pipe["model"]` and the `model` output. The upstream node can otherwise leave the old model in the output pipe.
 2. `sampler_name` and `scheduler` are exposed as COMBO outputs for **Anima Prompt Saver**.
+3. `steps` and `cfg` are exposed immediately above the `seed` output for direct metadata connections.
 
 These COMBO lists are resolved dynamically from ComfyUI's standard `KSampler`, including samplers and schedulers registered by other extensions.
 
 Standalone mode supports the main full-sampler inputs, model/conditioning/latent overrides, image-to-image VAE encoding, tiled VAE decoding, and Hide/Preview/Save output modes. Easy-Use-specific features such as XY Plot, Layer Diffusion, and Easy-Use-only schedulers require ComfyUI-Easy-Use.
+
+### Dynamic Text Hub
+
+Use the arrow control at the bottom of the node to select between 1 and 20 text fields. The frontend adds or removes the multiline widgets and matching individual output sockets immediately.
+
+- `mode = line_by_line`: joins active fields with newline characters; `delimiter` is hidden and ignored
+- `mode = join_with_delimiter`: joins active fields side by side using the exact `delimiter` string
+- `clean_whitespace`: when enabled, trims each field and collapses consecutive spaces, tabs, and line breaks to one space
+- `text_all`: the combined active fields using the selected mode
+- `text_1` ... `text_20`: each field as an independent `STRING` output; only active sockets are shown
+
+Whitespace cleanup also applies to the individual outputs. Reducing the field count disconnects outputs that are being removed so the workflow cannot retain hidden links. Increasing it again restores the corresponding empty or previously entered field.
+
+### Latent Upscale with VAE (By)
+
+This node replaces the separate size-reading, width/height math, and `LatentUpscaleWithVAE` nodes used by the `LatentUpscaleWithVAE.json` workflow.
+
+1. Connect the source `LATENT` and the VAE used for that latent.
+2. Set `scale_by` (for example, `1.25`).
+3. Select `lanczos` or `bislerp`. `lanczos` is the default and matches the referenced workflow.
+4. In `bislerp` mode, adjust `bislerp_ratio` from `0.00` to `1.00` in `0.01` steps. `0.00` is pure Lanczos, `1.00` is pure bislerp, and intermediate values blend both results. The ratio widget is hidden in Lanczos mode.
+
+Legacy compatibility interpolation modes are intentionally omitted. Internally, the node decodes the latent, reads the decoded dimensions, resizes it with ComfyUI's standard `common_upscale`, and encodes it back to `LATENT`. It requires no image-size input, math node, RES4LYF node, or ComfyUI-Easy-Use installation.
 
 ### Anima Prompt Saver
 
@@ -110,7 +136,7 @@ This is the Anima counterpart of `SD Prompt Saver` from [ComfyUI Prompt Reader N
 - Supports resource hashes and an optional metadata text file
 - Supports variables including `%date`, `%time`, `%seed`, `%steps`, `%cfg`, `%width`, `%height`, `%model`, `%sampler`, `%scheduler`, and `%counter`
 
-Connect the loader's `model_name` and `vae_name` outputs to the matching saver inputs. Connect the sampler's `image`, `seed`, `sampler_name`, and `scheduler` outputs to the saver. Set or connect `steps`, `cfg`, `width`, `height`, and prompt text when those values should be included in metadata.
+Connect the loader's `model_name` and `vae_name` outputs to the matching saver inputs. Connect the sampler's `image`, `steps`, `cfg`, `seed`, `sampler_name`, and `scheduler` outputs to the saver. Set or connect `width`, `height`, and prompt text when those values should be included in metadata.
 
 ### Recommended workflow
 
@@ -124,6 +150,8 @@ EasyLoader (Full) - Anima
 
 EasyKSampler (Full) - Anima
   ├─ image ───────────────────────────────> Anima Prompt Saver: images
+  ├─ steps ───────────────────────────────> Anima Prompt Saver: steps
+  ├─ cfg ─────────────────────────────────> Anima Prompt Saver: cfg
   ├─ seed ────────────────────────────────> Anima Prompt Saver: seed
   ├─ sampler_name ────────────────────────> Anima Prompt Saver: sampler_name
   └─ scheduler ───────────────────────────> Anima Prompt Saver: scheduler
@@ -144,6 +172,7 @@ EasyKSampler (Full) - Anima
 #### Compared with EasyKSampler (Full)
 
 - Corrects the model stored in the output pipe when model override is used
+- Adds `steps` and `cfg` outputs immediately above `seed`
 - Adds standard-KSampler-compatible `sampler_name` and `scheduler` COMBO outputs
 
 #### Compared with SD Prompt Saver
@@ -158,6 +187,8 @@ EasyKSampler (Full) - Anima
 The loader uses internal node ID `easy animaLoaderV2` so old widget positions are not applied to the new input layout.
 
 After updating, restart ComfyUI, remove the old loader from saved workflows, add **EasyLoader (Full) - Anima** again, and reconnect conditioning through external text-encoding nodes.
+
+Version 0.7.0 inserts `steps` and `cfg` before the sampler's `seed` output. Remove and add **EasyKSampler (Full) - Anima** again, then reconnect `steps`, `cfg`, `seed`, `sampler_name`, and `scheduler` so an older workflow cannot retain stale output indexes.
 
 ### Credits and license
 
@@ -217,6 +248,8 @@ Model files are not covered by this repository's license. Check each model's lic
 | **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Animaモデル、テキストエンコーダ、VAE、空latentを読み込み、Easy-Use互換pipeを作成します。 |
 | **EasyKSampler (Full) - Anima** | `EasyUse-Anima/Sampler` | Easy-UseがあればFull sampler、なければComfyUI標準samplerを使用し、モデルとsampler情報を出力します。 |
 | **Anima Prompt Saver** | `EasyUse-Anima` | A1111形式の生成パラメータとAnimaモデル情報を画像へ保存します。 |
+| **Dynamic Text Hub** | `EasyUse-Anima/Text` | 1～20個の複数行textboxを動的に表示し、改行または任意のdelimiterで結合します。 |
+| **Latent Upscale with VAE (By)** | `EasyUse-Anima/Latent` | latentをVAE decodeし、倍率でリサイズして再encodeする処理を1ノードで行います。 |
 
 ### EasyLoader (Full) - Anima
 
@@ -252,14 +285,38 @@ Animaとして認識されないmodel／CLIPはエラーで停止します。4�
 
 ComfyUI-Easy-Useがある場合は、本家の **EasyKSampler (Full)** へ処理を委譲して本家の動作とoptional入力を維持します。Easy-Useがない場合は、ComfyUI標準の`common_ksampler`、VAE decode、Preview Image、Save Imageへ自動的に切り替わります。
 
-次の2点を追加しています。
+次の3点を追加しています。
 
 1. optional `model`で差し替えた実使用モデルを`pipe["model"]`と`model`出力へ反映します。本家では元pipeのモデルが出力へ残る場合があります。
 2. `sampler_name`と`scheduler`をCOMBO型で出力し、**Anima Prompt Saver**へ接続できます。
+3. `steps`と`cfg`を`seed`の直前に出力し、メタデータ用に直接接続できます。
 
 COMBO一覧は標準`KSampler`から動的に取得するため、別の拡張機能が登録したsampler／schedulerも反映されます。
 
 単独モードでは、主要なFull sampler入力、model／conditioning／latentのoverride、img2img用VAE encode、tiled VAE decode、Hide／Preview／Save出力を使用できます。XY Plot、Layer Diffusion、Easy-Use専用schedulerなどはComfyUI-Easy-Use導入時のみ利用できます。
+
+### Dynamic Text Hub
+
+ノード下部の矢印付き個数欄で、1～20個のテキスト入力欄を選択します。個数を変えると、複数行入力欄と対応する個別出力スロットが同時に増減します。
+
+- `mode = line_by_line`: 使用中の入力を1欄ずつ改行して結合。`delimiter`は非表示になり使用しません
+- `mode = join_with_delimiter`: 指定した`delimiter`を間に入れて横並びに結合
+- `clean_whitespace`: 有効にすると、各入力の前後空白を削除し、連続する空白・タブ・改行を1個の半角スペースへ整理
+- `text_all`: 選択したmodeで使用中の入力を結合した`STRING`
+- `text_1`～`text_20`: 各入力欄の個別`STRING`出力。使用中のスロットだけを表示
+
+空白整理は各個別出力にも適用されます。個数を減らしたときは、非表示になる出力の接続を自動的に解除します。再び増やすと、対応する空欄または入力済みの内容を復元します。
+
+### Latent Upscale with VAE (By)
+
+`LatentUpscaleWithVAE.json`で使用していた画像サイズ取得、幅・高さの倍率計算、`LatentUpscaleWithVAE`を1ノードへまとめたものです。
+
+1. 元の`LATENT`と、そのlatentに使用するVAEを接続します。
+2. `scale_by`へ倍率（例: `1.25`）を指定します。
+3. `lanczos`または`bislerp`を選択します。初期値の`lanczos`は参照ワークフローと同じです。
+4. `bislerp`時は`bislerp_ratio`を`0.00～1.00`、`0.01`刻みで調整します。`0.00`はLanczosのみ、`1.00`はbislerpのみ、中間値は両方の結果を混合します。Lanczos時はこの入力欄を非表示にします。
+
+互換性目的の古い補間方式は意図的に除外しています。内部でlatentをdecodeし、画像サイズを取得してComfyUI標準`common_upscale`で拡大し、VAEで`LATENT`へ再encodeします。画像サイズ入力、Mathノード、RES4LYF、ComfyUI-Easy-Useは不要です。
 
 ### Anima Prompt Saver
 
@@ -272,7 +329,7 @@ COMBO一覧は標準`KSampler`から動的に取得するため、別の拡張�
 - リソースハッシュと任意のメタデータtxtに対応
 - `%date`、`%time`、`%seed`、`%steps`、`%cfg`、`%width`、`%height`、`%model`、`%sampler`、`%scheduler`、`%counter`などの変数に対応
 
-Loaderの`model_name`／`vae_name`をSaverの同名入力へ接続します。Samplerの`image`、`seed`、`sampler_name`、`scheduler`も接続します。保存したい場合は`steps`、`cfg`、`width`、`height`、プロンプト文字列も設定または接続してください。
+Loaderの`model_name`／`vae_name`をSaverの同名入力へ接続します。Samplerの`image`、`steps`、`cfg`、`seed`、`sampler_name`、`scheduler`も接続します。保存したい場合は`width`、`height`、プロンプト文字列も設定または接続してください。
 
 ### 推奨ワークフロー
 
@@ -286,6 +343,8 @@ EasyLoader (Full) - Anima
 
 EasyKSampler (Full) - Anima
   ├─ image ───────────────────────────────> Anima Prompt Saver: images
+  ├─ steps ───────────────────────────────> Anima Prompt Saver: steps
+  ├─ cfg ─────────────────────────────────> Anima Prompt Saver: cfg
   ├─ seed ────────────────────────────────> Anima Prompt Saver: seed
   ├─ sampler_name ────────────────────────> Anima Prompt Saver: sampler_name
   └─ scheduler ───────────────────────────> Anima Prompt Saver: scheduler
@@ -306,6 +365,7 @@ EasyKSampler (Full) - Anima
 #### EasyKSampler (Full)との違い
 
 - model override使用時に正しいモデルを出力pipeへ反映
+- `steps`／`cfg`を`seed`の直前に出力
 - `sampler_name`／`scheduler` COMBO出力を追加
 
 #### SD Prompt Saverとの違い
@@ -320,6 +380,8 @@ EasyKSampler (Full) - Anima
 旧ウィジェット位置の誤適用を防ぐため、Loaderの内部IDは`easy animaLoaderV2`です。
 
 更新後はComfyUIを再起動し、保存済みワークフローの旧Loaderを削除して **EasyLoader (Full) - Anima** を追加し直してください。conditioningも外部テキストエンコードノード経由で再接続します。
+
+バージョン0.7.0ではSamplerの`seed`出力より前に`steps`と`cfg`を追加しています。古い出力番号が残らないように **EasyKSampler (Full) - Anima** も削除して追加し直し、`steps`、`cfg`、`seed`、`sampler_name`、`scheduler`を再接続してください。
 
 ### クレジットとライセンス
 
