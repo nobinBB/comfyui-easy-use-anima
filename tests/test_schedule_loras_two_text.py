@@ -23,7 +23,7 @@ class ScheduleLorasTwoTextTests(unittest.TestCase):
         self.assertTrue(inputs["text_2"][1]["multiline"])
         self.assertEqual(
             self.module.ScheduleLorasTwoText.RETURN_NAMES,
-            ("model", "clip", "text"),
+            ("model", "clip", "loras_text", "text"),
         )
 
     def test_combines_non_empty_boxes_with_newline(self):
@@ -57,7 +57,12 @@ class ScheduleLorasTwoTextTests(unittest.TestCase):
         self.assertEqual(calls[0]["text"], "portrait\n<lora:style:0.8>")
         self.assertEqual(
             result["result"],
-            ("scheduled-model", "scheduled-clip", "portrait\n<lora:style:0.8>"),
+            (
+                "scheduled-model",
+                "scheduled-clip",
+                "portrait",
+                "portrait\n<lora:style:0.8>",
+            ),
         )
         self.assertEqual(result["expand"], {"nodes": []})
 

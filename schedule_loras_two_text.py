@@ -56,11 +56,12 @@ class ScheduleLorasTwoText:
             "hidden": {"unique_id": "UNIQUE_ID"},
         }
 
-    RETURN_TYPES = ("MODEL", "CLIP", "STRING")
-    RETURN_NAMES = ("model", "clip", "text")
+    RETURN_TYPES = ("MODEL", "CLIP", "STRING", "STRING")
+    RETURN_NAMES = ("model", "clip", "loras_text", "text")
     OUTPUT_TOOLTIPS = (
         "Model with the LoRA schedule applied.",
         "CLIP with the LoRA schedule applied.",
+        "Contents of the upper text_1 box.",
         "Combined text_1 and text_2 passed to Prompt Control.",
     )
     FUNCTION = "apply"
@@ -91,6 +92,7 @@ class ScheduleLorasTwoText:
         wrapped_response["result"] = (
             original_result[0],
             original_result[1],
+            str(text_1),
             combined_text,
         )
         return wrapped_response

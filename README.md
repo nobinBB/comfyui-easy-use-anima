@@ -55,7 +55,7 @@ This extension does not include or download model files.
 | **EasyKSampler (Full) - Anima** | `EasyUse-Anima/Sampler` | Uses Easy-Use Full sampling when available or ComfyUI core sampling in standalone mode, while preserving model and sampler metadata. |
 | **Anima Prompt Saver** | `EasyUse-Anima` | Saves images with A1111-style parameters and Anima model metadata. |
 | **Dynamic Text Hub** | `EasyUse-Anima/Text` | Dynamically shows 1-20 multiline text boxes, combines them by line or delimiter, and automatically resolves `{a|b|c}` choices. |
-| **PC: Schedule LoRAs Plus** | `EasyUse-Anima/Text` | Runs Prompt Control's LoRA scheduler from two multiline text boxes and also outputs their combined text. |
+| **PC: Schedule LoRAs Plus** | `EasyUse-Anima/Text` | Runs Prompt Control's LoRA scheduler from two multiline text boxes and outputs the upper LoRA text plus their combined text. |
 | **Latent Upscale with VAE (By)** | `EasyUse-Anima/Latent` | Decodes a latent, resizes it by a factor, and re-encodes it with the selected VAE in one node. |
 
 ### EasyLoader (Full) - Anima
@@ -119,7 +119,7 @@ Whitespace cleanup also applies to the individual outputs. Reducing the field co
 
 This node is a two-text wrapper around **PC: Schedule LoRAs** from [ComfyUI Prompt Control](https://github.com/asagi4/comfyui-prompt-control). Connect `model` and `clip`, then enter prompt/LoRA schedule content in `text_1` and `text_2`. Non-empty fields are joined with a newline and passed unchanged to Prompt Control.
 
-The outputs are the scheduled `model`, scheduled `clip`, and the combined `text`. Connect the `text` output to a compatible prompt-encoding node when the same text should drive both LoRA scheduling and conditioning. ComfyUI Prompt Control must be installed for this node; the rest of easy-use-anima remains usable without it.
+The outputs are the scheduled `model`, scheduled `clip`, upper-box `loras_text`, and combined `text`, in that order. Connect the `text` output to a compatible prompt-encoding node when the same text should drive both LoRA scheduling and conditioning. ComfyUI Prompt Control must be installed for this node; the rest of easy-use-anima remains usable without it.
 
 ### Latent Upscale with VAE (By)
 
@@ -258,7 +258,7 @@ Model files are not covered by this repository's license. Check each model's lic
 | **EasyKSampler (Full) - Anima** | `EasyUse-Anima/Sampler` | Easy-UseがあればFull sampler、なければComfyUI標準samplerを使用し、モデルとsampler情報を出力します。 |
 | **Anima Prompt Saver** | `EasyUse-Anima` | A1111形式の生成パラメータとAnimaモデル情報を画像へ保存します。 |
 | **Dynamic Text Hub** | `EasyUse-Anima/Text` | 1～20個の複数行textboxを動的に表示し、改行または任意delimiterで結合し、`{a|b|c}`の候補選択を自動適用します。 |
-| **PC: Schedule LoRAs Plus** | `EasyUse-Anima/Text` | 2段の複数行textboxをまとめてPrompt ControlのLoRAスケジュールへ渡し、結合済みtextも出力します。 |
+| **PC: Schedule LoRAs Plus** | `EasyUse-Anima/Text` | 2段の複数行textboxをLoRAスケジュールへ渡し、上段の`loras_text`と結合済み`text`を出力します。 |
 | **Latent Upscale with VAE (By)** | `EasyUse-Anima/Latent` | latentをVAE decodeし、倍率でリサイズして再encodeする処理を1ノードで行います。 |
 
 ### EasyLoader (Full) - Anima
@@ -322,7 +322,7 @@ COMBO一覧は標準`KSampler`から動的に取得するため、別の拡張�
 
 [ComfyUI Prompt Control](https://github.com/asagi4/comfyui-prompt-control)の **PC: Schedule LoRAs** を2段textbox化したラッパーです。`model`と`clip`を接続し、`text_1`と`text_2`へプロンプト／LoRAスケジュールを書きます。空でない欄を改行で結合し、そのままPrompt Controlへ渡します。
 
-スケジュール適用後の`model`、`clip`に加えて、結合済みの`text`を出力します。同じ文章をLoRAスケジュールとconditioningの両方へ使う場合は、`text`を対応するテキストエンコードノードへ接続してください。このノードだけはComfyUI Prompt Controlが必要ですが、未導入でもeasy-use-animaの他ノードは使用できます。
+スケジュール適用後の`model`、`clip`に続いて、上段textboxの内容を`loras_text`、上下2段の結合結果を`text`として出力します。同じ文章をLoRAスケジュールとconditioningの両方へ使う場合は、`text`を対応するテキストエンコードノードへ接続してください。このノードだけはComfyUI Prompt Controlが必要ですが、未導入でもeasy-use-animaの他ノードは使用できます。
 
 ### Latent Upscale with VAE (By)
 
