@@ -1,6 +1,6 @@
 [project]
 name = "easy-use-anima"
-version = "0.10.1"
+version = "0.12.1"
 description = "Standalone Anima loader, sampler, prompt saver, and dynamic text utility with optional Easy-Use integration."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -7,6 +7,11 @@ const MAX_TEXT_INPUTS = 20;
 const TEXTBOX_HEIGHT = 110;
 const TEXT_NAME_PATTERN = /^text_(\d+)$/;
 const MODE_LINE_BY_LINE = "line_by_line";
+const MODE_JOIN_WITH_DELIMITER = "join_with_delimiter";
+const SUPPORTED_MODES = new Set([
+    MODE_LINE_BY_LINE,
+    MODE_JOIN_WITH_DELIMITER,
+]);
 
 function clampCount(value) {
     const parsed = Math.round(Number(value) || 1);
@@ -78,25 +83,6 @@ function addTextInputSlot(node, template, widget) {
     return input;
 }
 
-function moveInputSlot(node, input, targetIndex) {
-    const currentIndex = node.inputs.indexOf(input);
-    if (currentIndex < 0 || currentIndex === targetIndex) return;
-
-    node.inputs.splice(currentIndex, 1);
-    node.inputs.splice(targetIndex, 0, input);
-
-    // Input links store their destination as an array index. Keep any links
-    // attached to the non-dynamic controls correct after the restored text
-    // input is moved in front of them.
-    if (node.graph?._links) {
-        node.inputs.forEach((slot, index) => {
-            if (slot.link == null) return;
-            const graphLink = node.graph._links.get(slot.link);
-            if (graphLink) graphLink.target_slot = index;
-        });
-    }
-}
-
 function syncTextInputSlots(node, count) {
     const templates = node.__dynamicTextInputTemplates;
 
@@ -114,8 +100,12 @@ function syncTextInputSlots(node, count) {
 
         const template = templates.get(name);
         if (!template) continue;
-        const input = addTextInputSlot(node, template, node.__dynamicTextWidgets[index - 1]);
-        moveInputSlot(node, input, index - 1);
+        // Keep addInput's append position. Moving the slot afterward leaves
+        // ComfyUI's index-keyed Vue layout cache pointing at the old index,
+        // which makes the connection circle drift to a different textbox.
+        // Widget input slots are positioned by widget.name, so array order is
+        // not required to match the visual textbox order.
+        addTextInputSlot(node, template, node.__dynamicTextWidgets[index - 1]);
     }
 }
 
@@ -195,12 +185,13 @@ function setupDynamicTextHub(node) {
     );
 
     node.__applyDynamicTextMode = (mode) => {
-        const lineByLine = mode === MODE_LINE_BY_LINE;
-        modeWidget.value = lineByLine ? MODE_LINE_BY_LINE : "join_with_delimiter";
-        setControlVisible(delimiterWidget, !lineByLine);
+        const normalizedMode = SUPPORTED_MODES.has(mode) ? mode : MODE_LINE_BY_LINE;
+        const showDelimiter = normalizedMode === MODE_JOIN_WITH_DELIMITER;
+        modeWidget.value = normalizedMode;
+        setControlVisible(delimiterWidget, showDelimiter);
         resizeNode(node);
         requestAnimationFrame(() => {
-            setControlVisible(delimiterWidget, !lineByLine);
+            setControlVisible(delimiterWidget, showDelimiter);
             resizeNode(node);
         });
     };

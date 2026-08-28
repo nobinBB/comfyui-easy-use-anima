@@ -3,16 +3,31 @@
 
 from __future__ import annotations
 
+import random
+import re
+
 
 MAX_TEXT_INPUTS = 20
 TEXT_NAMES = tuple(f"text_{index}" for index in range(1, MAX_TEXT_INPUTS + 1))
 JOIN_MODES = ("line_by_line", "join_with_delimiter")
+CHOICE_GROUP_PATTERN = re.compile(r"\{([^{}]*\|[^{}]*)\}")
 
 
 def _clean_text(value: object) -> str:
     """Trim a value and collapse every consecutive whitespace run."""
 
     return " ".join(str(value).split())
+
+
+def _resolve_choice_groups(value: str) -> str:
+    """Replace every {a|b|c} group with one randomly selected alternative."""
+
+    def replace(match: re.Match[str]) -> str:
+        options = [part.strip() for part in match.group(1).split("|")]
+        options = [option for option in options if option]
+        return random.choice(options) if options else ""
+
+    return CHOICE_GROUP_PATTERN.sub(replace, value)
 
 
 class DynamicTextHub:
@@ -53,8 +68,15 @@ class DynamicTextHub:
     CATEGORY = "EasyUse-Anima/Text"
     DESCRIPTION = (
         "Dynamically shows 1-20 multiline text fields. Combine active fields "
-        "line by line or with a custom delimiter, with optional whitespace cleanup."
+        "line by line or with a custom delimiter. Each {a|b|c} group is "
+        "automatically replaced with one random choice on every execution."
     )
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        """Force execution so choice groups can be selected again each queue."""
+
+        return float("nan")
 
     def combine(
         self,
@@ -68,10 +90,12 @@ class DynamicTextHub:
         individual = [str(kwargs.get(name, "")) for name in TEXT_NAMES]
         if clean_whitespace:
             individual = [_clean_text(text) for text in individual]
+        individual = [_resolve_choice_groups(text) for text in individual]
 
         active_texts = individual[:active_count]
         separator = str(delimiter) if mode == "join_with_delimiter" else "\n"
-        return (separator.join(active_texts), *individual)
+        combined = separator.join(active_texts)
+        return (combined, *individual)
 
 
 NODE_CLASS_MAPPINGS = {

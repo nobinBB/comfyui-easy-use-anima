@@ -14,6 +14,7 @@ It provides a separate Anima model/CLIP/VAE loader, an Anima-aware `EasyKSampler
 
 - A recent ComfyUI version with native Anima support
 - Optional: [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use). When absent, the included sampler uses ComfyUI core sampling automatically.
+- Optional: [ComfyUI Prompt Control](https://github.com/asagi4/comfyui-prompt-control), required only by **PC: Schedule LoRAs Plus**.
 - Python package `piexif`
 - An Anima diffusion model, compatible text encoder, and 16-channel Qwen Image VAE
 
@@ -53,7 +54,8 @@ This extension does not include or download model files.
 | **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Loads the Anima model, text encoder, VAE, and empty latent, then creates an Easy-Use-compatible pipe. |
 | **EasyKSampler (Full) - Anima** | `EasyUse-Anima/Sampler` | Uses Easy-Use Full sampling when available or ComfyUI core sampling in standalone mode, while preserving model and sampler metadata. |
 | **Anima Prompt Saver** | `EasyUse-Anima` | Saves images with A1111-style parameters and Anima model metadata. |
-| **Dynamic Text Hub** | `EasyUse-Anima/Text` | Dynamically shows 1-20 multiline text boxes and combines them line by line or with a custom delimiter. |
+| **Dynamic Text Hub** | `EasyUse-Anima/Text` | Dynamically shows 1-20 multiline text boxes, combines them by line or delimiter, and automatically resolves `{a|b|c}` choices. |
+| **PC: Schedule LoRAs Plus** | `EasyUse-Anima/Text` | Runs Prompt Control's LoRA scheduler from two multiline text boxes and also outputs their combined text. |
 | **Latent Upscale with VAE (By)** | `EasyUse-Anima/Latent` | Decodes a latent, resizes it by a factor, and re-encodes it with the selected VAE in one node. |
 
 ### EasyLoader (Full) - Anima
@@ -106,11 +108,18 @@ Use the arrow control at the bottom of the node to select between 1 and 20 text 
 
 - `mode = line_by_line`: joins active fields with newline characters; `delimiter` is hidden and ignored
 - `mode = join_with_delimiter`: joins active fields side by side using the exact `delimiter` string
+- Choice groups are automatic: `{red hair|green eyes|black dress}` is replaced with one randomly selected alternative on every execution. It works in either mode and applies the same selected value to `text_all` and the individual `text_n` output. Braces without `|` are left unchanged
 - `clean_whitespace`: when enabled, trims each field and collapses consecutive spaces, tabs, and line breaks to one space
 - `text_all`: the combined active fields using the selected mode
 - `text_1` ... `text_20`: each field as an independent `STRING` output; only active sockets are shown
 
 Whitespace cleanup also applies to the individual outputs. Reducing the field count disconnects outputs that are being removed so the workflow cannot retain hidden links. Increasing it again restores the corresponding empty or previously entered field.
+
+### PC: Schedule LoRAs Plus
+
+This node is a two-text wrapper around **PC: Schedule LoRAs** from [ComfyUI Prompt Control](https://github.com/asagi4/comfyui-prompt-control). Connect `model` and `clip`, then enter prompt/LoRA schedule content in `text_1` and `text_2`. Non-empty fields are joined with a newline and passed unchanged to Prompt Control.
+
+The outputs are the scheduled `model`, scheduled `clip`, and the combined `text`. Connect the `text` output to a compatible prompt-encoding node when the same text should drive both LoRA scheduling and conditioning. ComfyUI Prompt Control must be installed for this node; the rest of easy-use-anima remains usable without it.
 
 ### Latent Upscale with VAE (By)
 
@@ -248,7 +257,8 @@ Model files are not covered by this repository's license. Check each model's lic
 | **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Animaモデル、テキストエンコーダ、VAE、空latentを読み込み、Easy-Use互換pipeを作成します。 |
 | **EasyKSampler (Full) - Anima** | `EasyUse-Anima/Sampler` | Easy-UseがあればFull sampler、なければComfyUI標準samplerを使用し、モデルとsampler情報を出力します。 |
 | **Anima Prompt Saver** | `EasyUse-Anima` | A1111形式の生成パラメータとAnimaモデル情報を画像へ保存します。 |
-| **Dynamic Text Hub** | `EasyUse-Anima/Text` | 1～20個の複数行textboxを動的に表示し、改行または任意のdelimiterで結合します。 |
+| **Dynamic Text Hub** | `EasyUse-Anima/Text` | 1～20個の複数行textboxを動的に表示し、改行または任意delimiterで結合し、`{a|b|c}`の候補選択を自動適用します。 |
+| **PC: Schedule LoRAs Plus** | `EasyUse-Anima/Text` | 2段の複数行textboxをまとめてPrompt ControlのLoRAスケジュールへ渡し、結合済みtextも出力します。 |
 | **Latent Upscale with VAE (By)** | `EasyUse-Anima/Latent` | latentをVAE decodeし、倍率でリサイズして再encodeする処理を1ノードで行います。 |
 
 ### EasyLoader (Full) - Anima
@@ -301,11 +311,18 @@ COMBO一覧は標準`KSampler`から動的に取得するため、別の拡張�
 
 - `mode = line_by_line`: 使用中の入力を1欄ずつ改行して結合。`delimiter`は非表示になり使用しません
 - `mode = join_with_delimiter`: 指定した`delimiter`を間に入れて横並びに結合
+- 選択グループは自動適用：`{red hair|green eyes|black dress}`があると、実行ごとに候補から1つをランダム選択します。どちらのmodeでも動作し、同じ選択結果を`text_all`と個別の`text_n`へ反映します。`|`を含まない波括弧は変更しません
 - `clean_whitespace`: 有効にすると、各入力の前後空白を削除し、連続する空白・タブ・改行を1個の半角スペースへ整理
 - `text_all`: 選択したmodeで使用中の入力を結合した`STRING`
 - `text_1`～`text_20`: 各入力欄の個別`STRING`出力。使用中のスロットだけを表示
 
 空白整理は各個別出力にも適用されます。個数を減らしたときは、非表示になる出力の接続を自動的に解除します。再び増やすと、対応する空欄または入力済みの内容を復元します。
+
+### PC: Schedule LoRAs Plus
+
+[ComfyUI Prompt Control](https://github.com/asagi4/comfyui-prompt-control)の **PC: Schedule LoRAs** を2段textbox化したラッパーです。`model`と`clip`を接続し、`text_1`と`text_2`へプロンプト／LoRAスケジュールを書きます。空でない欄を改行で結合し、そのままPrompt Controlへ渡します。
+
+スケジュール適用後の`model`、`clip`に加えて、結合済みの`text`を出力します。同じ文章をLoRAスケジュールとconditioningの両方へ使う場合は、`text`を対応するテキストエンコードノードへ接続してください。このノードだけはComfyUI Prompt Controlが必要ですが、未導入でもeasy-use-animaの他ノードは使用できます。
 
 ### Latent Upscale with VAE (By)
 

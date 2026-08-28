@@ -9,6 +9,7 @@ Anima専用のモデル／CLIP／VAE Loader、EasyKSamplerラッパー、画像�
 
 - Animaへネイティブ対応した新しいComfyUI
 - 任意: [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use)。未導入の場合はComfyUI標準サンプリングへ自動的に切り替わります。
+- 任意: [ComfyUI Prompt Control](https://github.com/asagi4/comfyui-prompt-control)。**PC: Schedule LoRAs Plus**を使う場合だけ必要です。
 - Pythonパッケージ `piexif`
 - Anima diffusion model、対応テキストエンコーダ、16チャンネルQwen Image VAE
 
@@ -48,7 +49,8 @@ Anima専用のモデル／CLIP／VAE Loader、EasyKSamplerラッパー、画像�
 | **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Animaモデル、テキストエンコーダ、VAE、空latentを読み込み、Easy-Use互換pipeを作成します。 |
 | **EasyKSampler (Full) - Anima** | `EasyUse-Anima/Sampler` | Easy-UseがあればFull sampler、なければComfyUI標準samplerを使用し、モデルとsampler情報を出力します。 |
 | **Anima Prompt Saver** | `EasyUse-Anima` | A1111形式の生成パラメータとAnimaモデル情報を画像へ保存します。 |
-| **Dynamic Text Hub** | `EasyUse-Anima/Text` | 1～20個の複数行textboxを動的に表示し、改行または任意のdelimiterで結合します。 |
+| **Dynamic Text Hub** | `EasyUse-Anima/Text` | 1～20個の複数行textboxを動的に表示し、改行または任意delimiterで結合し、`{a|b|c}`の候補選択を自動適用します。 |
+| **PC: Schedule LoRAs Plus** | `EasyUse-Anima/Text` | 2段の複数行textboxをまとめてPrompt ControlのLoRAスケジュールへ渡し、結合済みtextも出力します。 |
 | **Latent Upscale with VAE (By)** | `EasyUse-Anima/Latent` | latentをVAE decodeし、倍率でリサイズして再encodeする処理を1ノードで行います。 |
 
 ### EasyLoader (Full) - Anima
@@ -101,11 +103,18 @@ COMBO一覧は標準`KSampler`から動的に取得するため、別の拡張�
 
 - `mode = line_by_line`: 使用中の入力を1欄ずつ改行して結合。`delimiter`は非表示になり使用しません
 - `mode = join_with_delimiter`: 指定した`delimiter`を間に入れて横並びに結合
+- 選択グループは自動適用：`{red hair|green eyes|black dress}`があると、実行ごとに候補から1つをランダム選択します。どちらのmodeでも動作し、同じ選択結果を`text_all`と個別の`text_n`へ反映します。`|`を含まない波括弧は変更しません
 - `clean_whitespace`: 有効にすると、各入力の前後空白を削除し、連続する空白・タブ・改行を1個の半角スペースへ整理
 - `text_all`: 選択したmodeで使用中の入力を結合した`STRING`
 - `text_1`～`text_20`: 各入力欄の個別`STRING`出力。使用中のスロットだけを表示
 
 空白整理は各個別出力にも適用されます。個数を減らしたときは、非表示になる出力の接続を自動的に解除します。再び増やすと、対応する空欄または入力済みの内容を復元します。
+
+### PC: Schedule LoRAs Plus
+
+[ComfyUI Prompt Control](https://github.com/asagi4/comfyui-prompt-control)の **PC: Schedule LoRAs** を2段textbox化したラッパーです。`model`と`clip`を接続し、`text_1`と`text_2`へプロンプト／LoRAスケジュールを書きます。空でない欄を改行で結合し、そのままPrompt Controlへ渡します。
+
+スケジュール適用後の`model`、`clip`に加えて、結合済みの`text`を出力します。同じ文章をLoRAスケジュールとconditioningの両方へ使う場合は、`text`を対応するテキストエンコードノードへ接続してください。このノードだけはComfyUI Prompt Controlが必要ですが、未導入でもeasy-use-animaの他ノードは使用できます。
 
 ### Latent Upscale with VAE (By)
 

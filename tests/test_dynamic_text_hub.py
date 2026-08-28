@@ -1,5 +1,7 @@
 import importlib.util
+import math
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -52,6 +54,43 @@ class DynamicTextHubTests(unittest.TestCase):
         )
         self.assertEqual(result[0], "first\nsecond")
 
+    def test_choice_group_automatically_selects_one_option(self):
+        with mock.patch.object(
+            self.module.random, "choice", side_effect=lambda options: options[1]
+        ):
+            result = self.module.DynamicTextHub().combine(
+                count=1,
+                mode="line_by_line",
+                text_1="portrait, {red hair|green eyes|black dress}",
+            )
+        self.assertEqual(result[0], "portrait, green eyes")
+        self.assertEqual(result[1], "portrait, green eyes")
+
+    def test_choice_groups_work_with_delimiter_mode(self):
+        with mock.patch.object(
+            self.module.random, "choice", side_effect=lambda options: options[-1]
+        ):
+            result = self.module.DynamicTextHub().combine(
+                count=2,
+                mode="join_with_delimiter",
+                delimiter=" / ",
+                text_1="{red|blue} hair",
+                text_2="{dress|jacket}",
+            )
+        self.assertEqual(result[0], "blue hair / jacket")
+        self.assertEqual(result[1:3], ("blue hair", "jacket"))
+
+    def test_braces_without_pipe_are_preserved(self):
+        result = self.module.DynamicTextHub().combine(
+            count=1,
+            text_1="plain {unchanged} text",
+        )
+        self.assertEqual(result[0], "plain {unchanged} text")
+        self.assertEqual(result[1], "plain {unchanged} text")
+
+    def test_choice_groups_force_execution_each_queue(self):
+        self.assertTrue(math.isnan(self.module.DynamicTextHub.IS_CHANGED()))
+
     def test_clean_whitespace_applies_to_combined_and_individual_outputs(self):
         result = self.module.DynamicTextHub().combine(
             count=2,
@@ -87,7 +126,15 @@ class DynamicTextHubTests(unittest.TestCase):
         self.assertEqual(count_spec[1]["min"], 1)
         self.assertEqual(count_spec[1]["max"], 20)
         self.assertEqual(optional["mode"][0], self.module.JOIN_MODES)
+        self.assertEqual(optional["mode"][0], ("line_by_line", "join_with_delimiter"))
         self.assertFalse(optional["clean_whitespace"][1]["default"])
+
+    def test_frontend_does_not_reorder_dynamic_input_slots(self):
+        frontend_path = Path(__file__).parents[1] / "web" / "dynamic_text_hub.js"
+        frontend = frontend_path.read_text(encoding="utf-8")
+        self.assertIn("node.addInput(name, type, options)", frontend)
+        self.assertIn("node.removeInput(inputIndex)", frontend)
+        self.assertNotIn("node.inputs.splice", frontend)
 
 
 if __name__ == "__main__":
