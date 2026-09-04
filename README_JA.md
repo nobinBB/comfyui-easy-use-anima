@@ -52,6 +52,7 @@ Anima専用のモデル／CLIP／VAE Loader、EasyKSamplerラッパー、画像�
 | **Dynamic Text Hub** | `EasyUse-Anima/Text` | 1～20個の複数行textboxを動的に表示し、改行または任意delimiterで結合し、`{a|b|c}`の候補選択を自動適用します。 |
 | **PC: Schedule LoRAs Plus** | `EasyUse-Anima/Text` | 2段の複数行textboxをLoRAスケジュールへ渡し、上段の`loras_text`と結合済み`text`を出力します。 |
 | **Latent Upscale with VAE (By)** | `EasyUse-Anima/Latent` | latentをVAE decodeし、倍率でリサイズして再encodeする処理を1ノードで行います。 |
+| **Torn Edge Lines / 破れ線ランダム生成** | `EasyUse-Anima/Image` | 位置・太さ・粗さ・seedを指定し、2本の破れ紙風ラインをIMAGEとMASKで生成します。 |
 
 ### EasyLoader (Full) - Anima
 
