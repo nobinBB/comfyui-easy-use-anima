@@ -4,6 +4,8 @@ Anima専用のモデル／CLIP／VAE Loader、EasyKSamplerラッパー、画像�
 
 [English README](README.md) | 日本語
 
+ワークフローの簡単な操作説明：[左右クロップと直線／破線の設定](workflows/README_左右クロップと境界線.md)
+
 
 ### 必要環境
 
@@ -51,6 +53,7 @@ Anima専用のモデル／CLIP／VAE Loader、EasyKSamplerラッパー、画像�
 | **Anima Prompt Saver** | `EasyUse-Anima` | A1111形式の生成パラメータとAnimaモデル情報を画像へ保存します。 |
 | **Dynamic Text Hub** | `EasyUse-Anima/Text` | 1～20個の複数行textboxを動的に表示し、改行または任意delimiterで結合し、`{a|b|c}`の候補選択を自動適用します。 |
 | **PC: Schedule LoRAs Plus** | `EasyUse-Anima/Text` | 2段の複数行textboxをLoRAスケジュールへ渡し、上段の`loras_text`と結合済み`text`を出力します。 |
+| **Negative Wildcard Processor Plus** | `EasyUse-Anima/Text` | positive内の`<!text!>`だけをnegativeへ移し、LoRAを含むその他の山括弧タグを保持します。 |
 | **Latent Upscale with VAE (By)** | `EasyUse-Anima/Latent` | latentをVAE decodeし、倍率でリサイズして再encodeする処理を1ノードで行います。 |
 | **Torn Edge Lines / 破れ線ランダム生成** | `EasyUse-Anima/Image` | 位置・太さ・粗さ・seedを指定し、2本の破れ紙風ラインをIMAGEとMASKで生成します。 |
 
@@ -116,6 +119,12 @@ COMBO一覧は標準`KSampler`から動的に取得するため、別の拡張�
 [ComfyUI Prompt Control](https://github.com/asagi4/comfyui-prompt-control)の **PC: Schedule LoRAs** を2段textbox化したラッパーです。`model`と`clip`を接続し、`text_1`と`text_2`へプロンプト／LoRAスケジュールを書きます。空でない欄を改行で結合し、そのままPrompt Controlへ渡します。
 
 スケジュール適用後の`model`、`clip`に続いて、上段textboxの内容を`loras_text`、上下2段の結合結果を`text`として出力します。同じ文章をLoRAスケジュールとconditioningの両方へ使う場合は、`text`を対応するテキストエンコードノードへ接続してください。このノードだけはComfyUI Prompt Controlが必要ですが、未導入でもeasy-use-animaの他ノードは使用できます。
+
+### Negative Wildcard Processor Plus
+
+positiveとnegativeの`STRING`を接続します。positive内で`<!`と`!>`に囲まれた内容だけを`text_positive`から取り除き、`text_negative`の末尾へ移動します。複数ブロックと、改行を含むブロックにも対応します。
+
+元の **Negative Wildcard Processor** と異なり、`<lora:...>`を削除しません。完全な`<!text!>`だけを解釈し、LoRA、embeddingなどその他すべての山括弧タグは変更せず通過させます。
 
 ### Latent Upscale with VAE (By)
 
