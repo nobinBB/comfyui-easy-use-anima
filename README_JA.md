@@ -38,6 +38,7 @@ Anima専用のモデル／CLIP／VAE Loader、EasyKSamplerラッパー、画像�
    ```text
    ComfyUI/models/
    ├─ diffusion_models/your_anima_model.safetensors
+   ├─ checkpoints/your_full_anima_checkpoint.safetensors  # 任意のoverride
    ├─ text_encoders/qwen_3_06b_base.safetensors
    └─ vae/qwen_image_vae.safetensors
    ```
@@ -48,7 +49,7 @@ Anima専用のモデル／CLIP／VAE Loader、EasyKSamplerラッパー、画像�
 
 | ノード | カテゴリ | 用途 |
 |---|---|---|
-| **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Animaモデル、テキストエンコーダ、VAE、空latentを読み込み、Easy-Use互換pipeを作成します。 |
+| **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Animaの分離構成、またはfull checkpointによるoverrideでモデル一式と空latentを読み込み、Easy-Use互換pipeを作成します。 |
 | **EasyKSampler (Full) - Anima** | `EasyUse-Anima/Sampler` | Easy-UseがあればFull sampler、なければComfyUI標準samplerを使用し、モデルとsampler情報を出力します。 |
 | **Anima Prompt Saver** | `EasyUse-Anima` | A1111形式の生成パラメータとAnimaモデル情報を画像へ保存します。 |
 | **Dynamic Text Hub** | `EasyUse-Anima/Text` | 1～20個の複数行textboxを動的に表示し、改行または任意delimiterで結合し、`{a|b|c}`の候補選択を自動適用します。 |
@@ -59,11 +60,13 @@ Anima専用のモデル／CLIP／VAE Loader、EasyKSamplerラッパー、画像�
 
 ### EasyLoader (Full) - Anima
 
-次の3ファイルを独立して選択します。
+通常は次の3ファイルを独立して選択します。
 
 - `model_name`: `models/diffusion_models`内のAnimaモデル
 - `clip_name`: `models/text_encoders`内のAnima用Qwen3 0.6Bテキストエンコーダ
 - `vae_name`: `models/vae`内の16チャンネルQwen Image VAE
+
+ノード最上部の`checkPoint`では`models/checkpoints`内のAnima checkpointを任意選択できます。checkpoint選択時は、checkpoint側の構成を使うため`model_name`、`weight_dtype`、`clip_name`、`clip_device`、`vae_name`を非表示にします。非表示になった選択値は保持され、checkpointにCLIPまたはVAEがない場合の自動フォールバックとして使われます。SafetensorsヘッダーがAnima構造と一致するcheckpointだけを一覧表示します。
 
 | 出力 | 型 | 内容 |
 |---|---|---|
@@ -72,14 +75,14 @@ Anima専用のモデル／CLIP／VAE Loader、EasyKSamplerラッパー、画像�
 | `vae` | `VAE` | 読み込んだQwen Image VAE |
 | `clip` | `CLIP` | 読み込んだAnimaテキストエンコーダ |
 | `latent` | `LATENT` | 選択解像度とbatch sizeの空latent |
-| `model_name` | COMBO | Anima Prompt Saverへ接続するモデル名 |
-| `vae_name` | COMBO | Anima Prompt Saverへ接続するVAE名 |
+| `model_name` | COMBO | Anima Prompt Saverへ接続するdiffusion modelまたはcheckpoint名 |
+| `vae_name` | COMBO | 外部VAE名。checkpointモードでは`Baked VAE` |
 
 解像度一覧はComfyUI-Easy-Useの`BASE_RESOLUTIONS`を読み込みます。取得できない場合は同一内容の31項目を使用します。
 
 Animaとして認識されないmodel／CLIPはエラーで停止します。4チャンネルSD用VAEもサンプリング前に拒否します。Animaには16チャンネルQwen Image VAEが必要です。
 
-モデルCOMBOの判定はフォルダ名・ファイル名に依存しません。Safetensorsのヘッダーだけを読み、Anima固有の構造キーを持つモデルを表示します。そのため、名前を変更したファイルや`diffusion_models`配下の任意のサブフォルダでも使用できます。Safetensors以外の形式と、ヘッダーから構造を判定できないファイルは表示しません。二重の安全対策として、実行時のモデル種別検証も残しています。
+model／checkpoint COMBOの判定はフォルダ名・ファイル名に依存しません。Safetensorsのヘッダーだけを読み、Anima固有の構造キーを持つファイルを表示します。そのため、名前を変更したファイルや`diffusion_models`／`checkpoints`配下の任意のサブフォルダでも使用できます。Safetensors以外の形式と、ヘッダーから構造を判定できないファイルは表示しません。二重の安全対策として、実行時にもMODEL／CLIP／VAEを検証します。
 
 #### プロンプトconditioning
 
@@ -141,7 +144,8 @@ positiveとnegativeの`STRING`を接続します。positive内で`<!`と`!>`に�
 
 [ComfyUI Prompt Reader Node](https://github.com/receyuki/comfyui-prompt-reader-node)の`SD Prompt Saver`をAnima向けに変更したノードです。
 
-- `checkpoints`ではなく`diffusion_models`からモデル名とハッシュを取得
+- `diffusion_models`とAnima判定済み`checkpoints`からモデル名とハッシュを取得
+- checkpoint内蔵VAEは`Baked VAE`として扱い、存在しない外部VAE情報を保存しない
 - 標準`KSampler`と同じsampler／scheduler一覧を使用
 - A1111形式の`parameters`を保存
 - PNGへworkflow情報、JPEG／WebPへEXIFコメントを保存
@@ -173,9 +177,9 @@ EasyKSampler (Full) - Anima
 
 #### EasyLoader (Full)との違い
 
-- SD用`checkpoints`ではなく`diffusion_models`からモデルを読み込み
-- Anima用CLIPを`text_encoders`から、VAEを`vae`から個別選択
-- `CheckpointLoader`、`clip_override`、`clip_skip`、A1111プロンプト重み解釈を不使用
+- 通常は`diffusion_models`、`text_encoders`、`vae`から分離構成を読み込み
+- Anima構造を確認済みのcheckpointでMODELと内蔵componentをoverrideし、不足するCLIP／VAEは分離選択へフォールバック
+- 汎用component override入力、`clip_skip`、A1111プロンプト重み解釈を不使用
 - LoRA stack入力とLoader内蔵LoRA読み込みを不使用
 - positive／negativeプロンプト欄とconditioning出力を不使用
 - `model_name`／`vae_name` COMBO出力を追加
@@ -189,7 +193,7 @@ EasyKSampler (Full) - Anima
 
 #### SD Prompt Saverとの違い
 
-- モデル一覧とハッシュに`diffusion_models`を使用
+- モデル一覧とハッシュに`diffusion_models`とAnima判定済み`checkpoints`を使用
 - ノード名を **Anima Prompt Saver**へ変更
 - Anima／Easy-Useワークフロー向けに同梱
 - A1111形式メタデータ、画像形式、ファイル名変数、workflow埋め込み、リソースハッシュは維持

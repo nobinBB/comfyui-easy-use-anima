@@ -56,11 +56,30 @@ def _has_anima_architecture(model_path: str) -> bool:
     return is_anima
 
 
-def anima_model_names() -> list[str]:
-    """Return Anima models regardless of their file or directory names."""
+def _anima_names(folder_type: str) -> list[str]:
+    """Return Anima files from a ComfyUI model folder."""
+
     matches = []
-    for name in folder_paths.get_filename_list("diffusion_models"):
-        model_path = folder_paths.get_full_path("diffusion_models", name)
+    for name in folder_paths.get_filename_list(folder_type):
+        model_path = folder_paths.get_full_path(folder_type, name)
         if model_path and _has_anima_architecture(model_path):
             matches.append(name)
     return matches
+
+
+def anima_model_names() -> list[str]:
+    """Return Anima diffusion models regardless of path or filename."""
+
+    return _anima_names("diffusion_models")
+
+
+def anima_checkpoint_names() -> list[str]:
+    """Return full Anima checkpoints regardless of path or filename."""
+
+    return _anima_names("checkpoints")
+
+
+def anima_source_names() -> list[str]:
+    """Return unique Anima diffusion-model and checkpoint names."""
+
+    return list(dict.fromkeys((*anima_model_names(), *anima_checkpoint_names())))

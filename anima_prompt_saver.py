@@ -27,9 +27,12 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
 try:
-    from .anima_model_filter import anima_model_names
+    from .anima_model_filter import anima_source_names
 except ImportError:  # Direct module loading used by tests and development tools.
-    from anima_model_filter import anima_model_names
+    from anima_model_filter import anima_source_names
+
+
+BAKED_VAE = "Baked VAE"
 
 
 SUPPORTED_FORMATS = (".png", ".jpg", ".jpeg", ".webp")
@@ -78,8 +81,8 @@ class AnimaPromptSaver:
                     {"default": "ComfyUI_%time_%seed_%counter", "multiline": False},
                 ),
                 "path": ("STRING", {"default": "%date/", "multiline": False}),
-                "model_name": (anima_model_names(),),
-                "vae_name": (folder_paths.get_filename_list("vae"),),
+                "model_name": (anima_source_names(),),
+                "vae_name": ([BAKED_VAE, *folder_paths.get_filename_list("vae")],),
                 "seed": (
                     "INT",
                     {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF},
@@ -217,8 +220,13 @@ class AnimaPromptSaver:
             img = Image.fromarray(np.clip(array, 0, 255).astype(np.uint8))
 
             model_hash_str = ""
+            effective_vae_name = "" if vae_name == BAKED_VAE else vae_name
             vae_hash_str = ""
-            vae_str = f"VAE: {Path(vae_name).stem}, " if vae_name else ""
+            vae_str = (
+                f"VAE: {Path(effective_vae_name).stem}, "
+                if effective_vae_name
+                else ""
+            )
             lora_hash_str = ""
             ti_hash_str = ""
             hashes: dict[str, str] = {}
@@ -229,8 +237,8 @@ class AnimaPromptSaver:
                     model_hash_str = f"Model hash: {model_hash}, "
                     hashes["model"] = model_hash
 
-                if vae_name:
-                    vae_hash = self.calculate_hash(vae_name, "vae")
+                if effective_vae_name:
+                    vae_hash = self.calculate_hash(effective_vae_name, "vae")
                     vae_hash_str = f"VAE hash: {vae_hash}, "
                     hashes["vae"] = vae_hash
 
@@ -340,21 +348,27 @@ class AnimaPromptSaver:
     @classmethod
     def calculate_hash(cls, name: str, hash_type: str) -> str:
         locations = {
-            "model": (cls.model_hash_dict, "diffusion_models"),
-            "vae": (cls.vae_hash_dict, "vae"),
-            "lora": (cls.lora_hash_dict, "loras"),
-            "ti": (cls.ti_hash_dict, "embeddings"),
+            "model": (cls.model_hash_dict, ("diffusion_models", "checkpoints")),
+            "vae": (cls.vae_hash_dict, ("vae",)),
+            "lora": (cls.lora_hash_dict, ("loras",)),
+            "ti": (cls.ti_hash_dict, ("embeddings",)),
         }
         if hash_type not in locations:
             return ""
-        hash_dict, folder_name = locations[hash_type]
+        hash_dict, folder_names = locations[hash_type]
         if name in hash_dict:
             return hash_dict[name]
 
-        file_name = folder_paths.get_full_path(folder_name, name)
+        file_name = None
+        for folder_name in folder_names:
+            file_name = folder_paths.get_full_path(folder_name, name)
+            if file_name:
+                break
         if not file_name:
             raise FileNotFoundError(
-                f"Could not resolve {hash_type} '{name}' in models/{folder_name}."
+                f"Could not resolve {hash_type} '{name}' in "
+                + " or ".join(f"models/{folder}" for folder in folder_names)
+                + "."
             )
         hash_sha256 = hashlib.sha256()
         with open(file_name, "rb") as file_handle:

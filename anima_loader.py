@@ -1,9 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Anima-only EasyLoader compatible with ComfyUI-Easy-Use pipelines.
-
-The loader deliberately keeps the diffusion model and text encoder paths
-separate. In particular, it never loads a Stable Diffusion checkpoint.
-"""
+"""Anima-only EasyLoader compatible with ComfyUI-Easy-Use pipelines."""
 
 from __future__ import annotations
 
@@ -15,12 +11,22 @@ import folder_paths
 from nodes import MAX_RESOLUTION, NODE_CLASS_MAPPINGS as CORE_NODES
 
 try:
-    from .anima_model_filter import anima_model_names
+    from .anima_model_filter import (
+        anima_checkpoint_names,
+        anima_model_names,
+        anima_source_names,
+    )
 except ImportError:  # Direct module loading used by tests and development tools.
-    from anima_model_filter import anima_model_names
+    from anima_model_filter import (
+        anima_checkpoint_names,
+        anima_model_names,
+        anima_source_names,
+    )
 
 
 CUSTOM_RESOLUTION = "width x height (custom)"
+NO_CHECKPOINT = "None (use separate model / CLIP / VAE)"
+BAKED_VAE = "Baked VAE"
 FALLBACK_BASE_RESOLUTIONS = [
     ("width", "height"),
     (512, 512),
@@ -175,13 +181,24 @@ def _assert_anima_vae(vae: Any, vae_name: str) -> None:
 
 
 class EasyAnimaFullLoader:
-    """Load a complete native Anima pipeline without an SD checkpoint path."""
+    """Load Anima from separate files or an optional full checkpoint."""
 
     @classmethod
     def INPUT_TYPES(cls):
         vae_names, vae_options = _vae_input_options()
         return {
             "required": {
+                "checkPoint": (
+                    [NO_CHECKPOINT, *anima_checkpoint_names()],
+                    {
+                        "default": NO_CHECKPOINT,
+                        "tooltip": (
+                            "Anima checkpoint from models/checkpoints. Its MODEL is "
+                            "used, included CLIP/VAE take priority, and missing "
+                            "CLIP/VAE fall back to the saved selections below."
+                        ),
+                    },
+                ),
                 "model_name": (
                     anima_model_names(),
                     {
@@ -234,8 +251,8 @@ class EasyAnimaFullLoader:
         "VAE",
         "CLIP",
         "LATENT",
-        anima_model_names(),
-        folder_paths.get_filename_list("vae"),
+        anima_source_names(),
+        [BAKED_VAE, *folder_paths.get_filename_list("vae")],
     )
     RETURN_NAMES = (
         "pipe",
@@ -249,9 +266,9 @@ class EasyAnimaFullLoader:
     FUNCTION = "load_anima"
     CATEGORY = "EasyUse-Anima/Loaders"
     DESCRIPTION = (
-        "An Anima-only EasyLoader. Loads the diffusion model, Qwen3 0.6B "
-        "text encoder, and VAE separately; it has no SD checkpoint or CLIP "
-        "override path."
+        "An Anima-only EasyLoader. By default it loads the diffusion model, "
+        "Qwen3 0.6B text encoder, and VAE separately. An optional verified "
+        "Anima checkpoint can override the model and any components it includes."
     )
 
     def load_anima(
@@ -265,20 +282,50 @@ class EasyAnimaFullLoader:
         empty_latent_width: int,
         empty_latent_height: int,
         batch_size: int,
+        checkPoint: str = NO_CHECKPOINT,
     ):
-        model = _core_node("UNETLoader").load_unet(model_name, weight_dtype)[0]
-        _assert_anima_model(model, model_name)
+        use_checkpoint = bool(checkPoint and checkPoint != NO_CHECKPOINT)
+        if use_checkpoint:
+            model, checkpoint_clip, checkpoint_vae = _core_node(
+                "CheckpointLoaderSimple"
+            ).load_checkpoint(checkPoint)
+            _assert_anima_model(model, checkPoint)
+            if checkpoint_clip is None:
+                clip = _core_node("CLIPLoader").load_clip(
+                    clip_name, type="stable_diffusion", device=clip_device
+                )[0]
+                effective_clip_name = clip_name
+            else:
+                clip = checkpoint_clip
+                effective_clip_name = checkPoint
+            _assert_anima_clip(clip, effective_clip_name)
 
-        # "stable_diffusion" is ComfyUI's single-encoder auto-detection mode.
-        # The loaded Qwen3 0.6B state dict is detected as Anima by core.  No SD
-        # checkpoint CLIP and no external CLIP override is ever consulted.
-        clip = _core_node("CLIPLoader").load_clip(
-            clip_name, type="stable_diffusion", device=clip_device
-        )[0]
-        _assert_anima_clip(clip, clip_name)
+            if checkpoint_vae is None:
+                vae = _core_node("VAELoader").load_vae(vae_name)[0]
+                effective_vae_name = vae_name
+            else:
+                vae = checkpoint_vae
+                effective_vae_name = BAKED_VAE
+            _assert_anima_vae(vae, effective_vae_name)
+            effective_model_name = checkPoint
+            source_mode = "checkpoint"
+        else:
+            model = _core_node("UNETLoader").load_unet(model_name, weight_dtype)[0]
+            _assert_anima_model(model, model_name)
 
-        vae = _core_node("VAELoader").load_vae(vae_name)[0]
-        _assert_anima_vae(vae, vae_name)
+            # "stable_diffusion" is ComfyUI's single-encoder auto-detection mode.
+            # The loaded Qwen3 0.6B state dict is detected as Anima by core.
+            clip = _core_node("CLIPLoader").load_clip(
+                clip_name, type="stable_diffusion", device=clip_device
+            )[0]
+            _assert_anima_clip(clip, clip_name)
+
+            vae = _core_node("VAELoader").load_vae(vae_name)[0]
+            _assert_anima_vae(vae, vae_name)
+            effective_model_name = model_name
+            effective_clip_name = clip_name
+            effective_vae_name = vae_name
+            source_mode = "separate_files"
 
         width, height = _resolve_size(
             resolution, empty_latent_width, empty_latent_height
@@ -298,11 +345,13 @@ class EasyAnimaFullLoader:
             "loader_settings": {
                 "loader": "easy-use-anima",
                 "model_family": "anima",
-                "model_name": model_name,
+                "source_mode": source_mode,
+                "ckpt_name": checkPoint if use_checkpoint else None,
+                "model_name": effective_model_name,
                 "weight_dtype": weight_dtype,
-                "clip_name": clip_name,
+                "clip_name": effective_clip_name,
                 "clip_device": clip_device,
-                "vae_name": vae_name,
+                "vae_name": effective_vae_name,
                 "resolution": resolution,
                 "empty_latent_width": width,
                 "empty_latent_height": height,
@@ -316,8 +365,8 @@ class EasyAnimaFullLoader:
             vae,
             clip,
             latent,
-            model_name,
-            vae_name,
+            effective_model_name,
+            effective_vae_name,
         )
 
 

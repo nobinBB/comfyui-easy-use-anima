@@ -41,6 +41,7 @@ This extension does not include or download model files.
    ```text
    ComfyUI/models/
    ├─ diffusion_models/your_anima_model.safetensors
+   ├─ checkpoints/your_full_anima_checkpoint.safetensors  # optional override
    ├─ text_encoders/qwen_3_06b_base.safetensors
    └─ vae/qwen_image_vae.safetensors
    ```
@@ -51,7 +52,7 @@ This extension does not include or download model files.
 
 | Node | Category | Purpose |
 |---|---|---|
-| **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Loads the Anima model, text encoder, VAE, and empty latent, then creates an Easy-Use-compatible pipe. |
+| **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Loads separate Anima components or overrides them with a full Anima checkpoint, then creates an Easy-Use-compatible pipe. |
 | **EasyKSampler (Full) - Anima** | `EasyUse-Anima/Sampler` | Uses Easy-Use Full sampling when available or ComfyUI core sampling in standalone mode, while preserving model and sampler metadata. |
 | **Anima Prompt Saver** | `EasyUse-Anima` | Saves images with A1111-style parameters and Anima model metadata. |
 | **Dynamic Text Hub** | `EasyUse-Anima/Text` | Dynamically shows 1-20 multiline text boxes, combines them by line or delimiter, and automatically resolves `{a|b|c}` choices. |
@@ -62,11 +63,13 @@ This extension does not include or download model files.
 
 ### EasyLoader (Full) - Anima
 
-The loader selects three independent files:
+By default, the loader selects three independent files:
 
 - `model_name`: Anima model from `models/diffusion_models`
 - `clip_name`: Anima Qwen3 0.6B text encoder from `models/text_encoders`
 - `vae_name`: 16-channel Qwen Image VAE from `models/vae`
+
+`checkPoint`, shown at the top of the node, optionally selects an Anima checkpoint from `models/checkpoints`. When a checkpoint is selected, the separate `model_name`, `weight_dtype`, `clip_name`, `clip_device`, and `vae_name` controls are hidden because the checkpoint supplies the model components. Their saved values are retained as automatic fallbacks when the checkpoint does not contain CLIP or VAE weights. Only checkpoints whose Safetensors header matches the Anima architecture are listed.
 
 | Output | Type | Description |
 |---|---|---|
@@ -75,14 +78,14 @@ The loader selects three independent files:
 | `vae` | `VAE` | Loaded Qwen Image VAE. |
 | `clip` | `CLIP` | Loaded Anima text encoder. |
 | `latent` | `LATENT` | Empty latent for the selected resolution and batch size. |
-| `model_name` | COMBO | Selected diffusion model name for Anima Prompt Saver. |
-| `vae_name` | COMBO | Selected VAE name for Anima Prompt Saver. |
+| `model_name` | COMBO | Selected diffusion model or checkpoint name for Anima Prompt Saver. |
+| `vae_name` | COMBO | Selected external VAE name, or `Baked VAE` in checkpoint mode. |
 
 The resolution list is read from the installed ComfyUI-Easy-Use `BASE_RESOLUTIONS`. A matching built-in 31-entry list is used if the upstream configuration cannot be found.
 
 The loader rejects a model or text encoder that is not recognized as Anima. It also rejects a 4-channel SD VAE before sampling; Anima requires a 16-channel Qwen Image VAE.
 
-The model COMBO does not depend on a folder or file name. It reads only the Safetensors header and shows files whose architecture keys match Anima, so renamed files and arbitrary subfolders under `diffusion_models` work normally. Non-Safetensors files and files whose architecture cannot be identified from the header are not shown. Runtime model-family validation remains enabled as a second safety check.
+The model and checkpoint COMBOs do not depend on folder or file names. They read only the Safetensors header and show files whose architecture keys match Anima, so renamed files and arbitrary subfolders under `diffusion_models` or `checkpoints` work normally. Non-Safetensors files and files whose architecture cannot be identified from the header are not shown. Runtime validation of MODEL, CLIP, and VAE remains enabled as a second safety check.
 
 #### Prompt conditioning
 
@@ -144,8 +147,9 @@ Legacy compatibility interpolation modes are intentionally omitted. Internally, 
 
 This is the Anima counterpart of `SD Prompt Saver` from [ComfyUI Prompt Reader Node](https://github.com/receyuki/comfyui-prompt-reader-node).
 
-- Reads `model_name` from `models/diffusion_models`, not `models/checkpoints`
-- Calculates the model hash from the selected diffusion model
+- Reads verified Anima model names from both `models/diffusion_models` and `models/checkpoints`
+- Calculates the model hash from the selected diffusion model or checkpoint
+- Treats a checkpoint's included VAE as `Baked VAE` without creating false external-VAE metadata
 - Uses the standard ComfyUI `KSampler` sampler/scheduler lists
 - Saves A1111-style `parameters` metadata
 - Embeds workflow metadata in PNG
@@ -178,9 +182,9 @@ EasyKSampler (Full) - Anima
 
 #### Compared with EasyLoader (Full)
 
-- Loads from `diffusion_models` instead of SD `checkpoints`
-- Selects the Anima text encoder from `text_encoders` and the VAE separately
-- Does not use `CheckpointLoader`, `clip_override`, `clip_skip`, or A1111 prompt-weight parsing
+- Loads separate components from `diffusion_models`, `text_encoders`, and `vae` by default
+- Can override the model and any included components with an architecture-verified Anima checkpoint; missing CLIP/VAE components fall back to the separate selections
+- Does not use generic component override sockets, `clip_skip`, or A1111 prompt-weight parsing
 - Does not include a LoRA stack input or built-in LoRA loading
 - Does not include positive/negative prompt widgets or conditioning outputs
 - Adds `model_name` and `vae_name` COMBO outputs for metadata
@@ -194,7 +198,7 @@ EasyKSampler (Full) - Anima
 
 #### Compared with SD Prompt Saver
 
-- Uses `diffusion_models` for the model list and hash
+- Uses both `diffusion_models` and verified Anima `checkpoints` for the model list and hash
 - Uses the name **Anima Prompt Saver**
 - Is packaged for this Anima/Easy-Use workflow
 - Retains A1111-style metadata, image formats, filename variables, workflow embedding, and resource hashes
@@ -252,6 +256,7 @@ Model files are not covered by this repository's license. Check each model's lic
    ```text
    ComfyUI/models/
    ├─ diffusion_models/your_anima_model.safetensors
+   ├─ checkpoints/your_full_anima_checkpoint.safetensors  # 任意のoverride
    ├─ text_encoders/qwen_3_06b_base.safetensors
    └─ vae/qwen_image_vae.safetensors
    ```
@@ -262,7 +267,7 @@ Model files are not covered by this repository's license. Check each model's lic
 
 | ノード | カテゴリ | 用途 |
 |---|---|---|
-| **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Animaモデル、テキストエンコーダ、VAE、空latentを読み込み、Easy-Use互換pipeを作成します。 |
+| **EasyLoader (Full) - Anima** | `EasyUse-Anima/Loaders` | Animaの分離構成、またはfull checkpointによるoverrideでモデル一式と空latentを読み込み、Easy-Use互換pipeを作成します。 |
 | **EasyKSampler (Full) - Anima** | `EasyUse-Anima/Sampler` | Easy-UseがあればFull sampler、なければComfyUI標準samplerを使用し、モデルとsampler情報を出力します。 |
 | **Anima Prompt Saver** | `EasyUse-Anima` | A1111形式の生成パラメータとAnimaモデル情報を画像へ保存します。 |
 | **Dynamic Text Hub** | `EasyUse-Anima/Text` | 1～20個の複数行textboxを動的に表示し、改行または任意delimiterで結合し、`{a|b|c}`の候補選択を自動適用します。 |
@@ -273,11 +278,13 @@ Model files are not covered by this repository's license. Check each model's lic
 
 ### EasyLoader (Full) - Anima
 
-次の3ファイルを独立して選択します。
+通常は次の3ファイルを独立して選択します。
 
 - `model_name`: `models/diffusion_models`内のAnimaモデル
 - `clip_name`: `models/text_encoders`内のAnima用Qwen3 0.6Bテキストエンコーダ
 - `vae_name`: `models/vae`内の16チャンネルQwen Image VAE
+
+ノード最上部の`checkPoint`では`models/checkpoints`内のAnima checkpointを任意選択できます。checkpoint選択時は、checkpoint側の構成を使うため`model_name`、`weight_dtype`、`clip_name`、`clip_device`、`vae_name`を非表示にします。非表示になった選択値は保持され、checkpointにCLIPまたはVAEがない場合の自動フォールバックとして使われます。SafetensorsヘッダーがAnima構造と一致するcheckpointだけを一覧表示します。
 
 | 出力 | 型 | 内容 |
 |---|---|---|
@@ -286,14 +293,14 @@ Model files are not covered by this repository's license. Check each model's lic
 | `vae` | `VAE` | 読み込んだQwen Image VAE |
 | `clip` | `CLIP` | 読み込んだAnimaテキストエンコーダ |
 | `latent` | `LATENT` | 選択解像度とbatch sizeの空latent |
-| `model_name` | COMBO | Anima Prompt Saverへ接続するモデル名 |
-| `vae_name` | COMBO | Anima Prompt Saverへ接続するVAE名 |
+| `model_name` | COMBO | Anima Prompt Saverへ接続するdiffusion modelまたはcheckpoint名 |
+| `vae_name` | COMBO | 外部VAE名。checkpointモードでは`Baked VAE` |
 
 解像度一覧はComfyUI-Easy-Useの`BASE_RESOLUTIONS`を読み込みます。取得できない場合は同一内容の31項目を使用します。
 
 Animaとして認識されないmodel／CLIPはエラーで停止します。4チャンネルSD用VAEもサンプリング前に拒否します。Animaには16チャンネルQwen Image VAEが必要です。
 
-モデルCOMBOの判定はフォルダ名・ファイル名に依存しません。Safetensorsのヘッダーだけを読み、Anima固有の構造キーを持つモデルを表示します。そのため、名前を変更したファイルや`diffusion_models`配下の任意のサブフォルダでも使用できます。Safetensors以外の形式と、ヘッダーから構造を判定できないファイルは表示しません。二重の安全対策として、実行時のモデル種別検証も残しています。
+model／checkpoint COMBOの判定はフォルダ名・ファイル名に依存しません。Safetensorsのヘッダーだけを読み、Anima固有の構造キーを持つファイルを表示します。そのため、名前を変更したファイルや`diffusion_models`／`checkpoints`配下の任意のサブフォルダでも使用できます。Safetensors以外の形式と、ヘッダーから構造を判定できないファイルは表示しません。二重の安全対策として、実行時にもMODEL／CLIP／VAEを検証します。
 
 #### プロンプトconditioning
 
@@ -355,7 +362,8 @@ positiveとnegativeの`STRING`を接続します。positive内で`<!`と`!>`に�
 
 [ComfyUI Prompt Reader Node](https://github.com/receyuki/comfyui-prompt-reader-node)の`SD Prompt Saver`をAnima向けに変更したノードです。
 
-- `checkpoints`ではなく`diffusion_models`からモデル名とハッシュを取得
+- `diffusion_models`とAnima判定済み`checkpoints`からモデル名とハッシュを取得
+- checkpoint内蔵VAEは`Baked VAE`として扱い、存在しない外部VAE情報を保存しない
 - 標準`KSampler`と同じsampler／scheduler一覧を使用
 - A1111形式の`parameters`を保存
 - PNGへworkflow情報、JPEG／WebPへEXIFコメントを保存
@@ -387,9 +395,9 @@ EasyKSampler (Full) - Anima
 
 #### EasyLoader (Full)との違い
 
-- SD用`checkpoints`ではなく`diffusion_models`からモデルを読み込み
-- Anima用CLIPを`text_encoders`から、VAEを`vae`から個別選択
-- `CheckpointLoader`、`clip_override`、`clip_skip`、A1111プロンプト重み解釈を不使用
+- 通常は`diffusion_models`、`text_encoders`、`vae`から分離構成を読み込み
+- Anima構造を確認済みのcheckpointでMODELと内蔵componentをoverrideし、不足するCLIP／VAEは分離選択へフォールバック
+- 汎用component override入力、`clip_skip`、A1111プロンプト重み解釈を不使用
 - LoRA stack入力とLoader内蔵LoRA読み込みを不使用
 - positive／negativeプロンプト欄とconditioning出力を不使用
 - `model_name`／`vae_name` COMBO出力を追加
@@ -403,7 +411,7 @@ EasyKSampler (Full) - Anima
 
 #### SD Prompt Saverとの違い
 
-- モデル一覧とハッシュに`diffusion_models`を使用
+- モデル一覧とハッシュに`diffusion_models`とAnima判定済み`checkpoints`を使用
 - ノード名を **Anima Prompt Saver**へ変更
 - Anima／Easy-Useワークフロー向けに同梱
 - A1111形式メタデータ、画像形式、ファイル名変数、workflow埋め込み、リソースハッシュは維持

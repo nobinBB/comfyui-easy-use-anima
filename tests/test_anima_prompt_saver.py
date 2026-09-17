@@ -31,7 +31,15 @@ class AnimaPromptSaverTests(unittest.TestCase):
         cls.anima_name = "anything/renamed.safetensors"
         cls.fake_anima_name = "Anima/not_anima.safetensors"
         cls.krea_name = "krea2.safetensors"
-        for name in (cls.anima_name, cls.fake_anima_name, cls.krea_name):
+        cls.anima_checkpoint_name = "checkpoints/anima_full.safetensors"
+        cls.sdxl_checkpoint_name = "sdxl.safetensors"
+        for name in (
+            cls.anima_name,
+            cls.fake_anima_name,
+            cls.krea_name,
+            cls.anima_checkpoint_name,
+            cls.sdxl_checkpoint_name,
+        ):
             (cls.model_root / name).parent.mkdir(parents=True, exist_ok=True)
         save_file(
             {
@@ -50,24 +58,46 @@ class AnimaPromptSaverTests(unittest.TestCase):
             {"transformer.weight": np.zeros((1,), dtype=np.float32)},
             cls.model_root / cls.krea_name,
         )
+        save_file(
+            {
+                "model.diffusion_model.blocks.0.mlp.layer1.weight": np.zeros(
+                    (1,), dtype=np.float32
+                ),
+                "model.diffusion_model.llm_adapter.blocks.0.cross_attn.q_proj.weight": np.zeros(
+                    (1,), dtype=np.float32
+                ),
+            },
+            cls.model_root / cls.anima_checkpoint_name,
+        )
+        save_file(
+            {"model.diffusion_model.input_blocks.0.weight": np.zeros((1,), dtype=np.float32)},
+            cls.model_root / cls.sdxl_checkpoint_name,
+        )
         cls.requested_folder_types = []
 
         folder_paths = types.ModuleType("folder_paths")
 
-        def get_filename_list(kind):
-            return {
+        files = {
                 "diffusion_models": [
                     cls.anima_name,
                     cls.fake_anima_name,
                     cls.krea_name,
                 ],
-                "checkpoints": ["sdxl.safetensors"],
+                "checkpoints": [
+                    cls.anima_checkpoint_name,
+                    cls.sdxl_checkpoint_name,
+                ],
                 "vae": ["qwen_image_vae.safetensors"],
                 "embeddings": [],
-            }.get(kind, [])
+            }
+
+        def get_filename_list(kind):
+            return files.get(kind, [])
 
         def get_full_path(kind, name):
             cls.requested_folder_types.append(kind)
+            if name not in files.get(kind, []):
+                return None
             return str(cls.model_root / name)
 
         folder_paths.get_filename_list = get_filename_list
@@ -116,12 +146,19 @@ class AnimaPromptSaverTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.temp_dir.cleanup()
 
-    def test_uses_diffusion_models_and_core_ksampler_lists(self):
+    def test_uses_anima_models_checkpoints_and_core_ksampler_lists(self):
         inputs = self.module.AnimaPromptSaver.INPUT_TYPES()["optional"]
-        self.assertEqual(inputs["model_name"][0], [self.anima_name])
-        self.assertNotIn("sdxl.safetensors", inputs["model_name"][0])
+        self.assertEqual(
+            inputs["model_name"][0],
+            [self.anima_name, self.anima_checkpoint_name],
+        )
+        self.assertNotIn(self.sdxl_checkpoint_name, inputs["model_name"][0])
         self.assertNotIn(self.fake_anima_name, inputs["model_name"][0])
         self.assertNotIn(self.krea_name, inputs["model_name"][0])
+        self.assertEqual(
+            inputs["vae_name"][0],
+            [self.module.BAKED_VAE, "qwen_image_vae.safetensors"],
+        )
         self.assertEqual(
             inputs["sampler_name"][0], ["euler", "extension_sampler"]
         )
@@ -140,6 +177,21 @@ class AnimaPromptSaverTests(unittest.TestCase):
         ).hexdigest()[:10]
         self.assertEqual(result, expected)
         self.assertEqual(self.requested_folder_types, ["diffusion_models"])
+
+    def test_model_hash_resolves_anima_checkpoint_from_checkpoints(self):
+        self.module.AnimaPromptSaver.model_hash_dict.clear()
+        self.requested_folder_types.clear()
+        result = self.module.AnimaPromptSaver.calculate_hash(
+            self.anima_checkpoint_name, "model"
+        )
+        expected = hashlib.sha256(
+            (self.model_root / self.anima_checkpoint_name).read_bytes()
+        ).hexdigest()[:10]
+        self.assertEqual(result, expected)
+        self.assertEqual(
+            self.requested_folder_types,
+            ["diffusion_models", "checkpoints"],
+        )
 
     def test_saves_png_with_anima_metadata(self):
         saver = self.module.AnimaPromptSaver()
@@ -178,6 +230,23 @@ class AnimaPromptSaverTests(unittest.TestCase):
             self.module.NODE_DISPLAY_NAME_MAPPINGS["easy animaPromptSaver"],
             "Anima Prompt Saver",
         )
+
+    def test_baked_vae_does_not_emit_external_vae_metadata(self):
+        saver = self.module.AnimaPromptSaver()
+        result = saver.save_images(
+            [_ImageTensor()],
+            filename="anima_baked_vae_test",
+            path="",
+            model_name=self.anima_checkpoint_name,
+            vae_name=self.module.BAKED_VAE,
+            extension="png",
+            calculate_hash=False,
+        )
+
+        with Image.open(Path(result["result"][1])) as image:
+            parameters = image.info["parameters"]
+        self.assertNotIn("VAE:", parameters)
+        self.assertNotIn("VAE hash:", parameters)
 
 
 if __name__ == "__main__":
