@@ -4,5 +4,14 @@ version = "0.15.0"
 description = "Standalone Anima loader, sampler, prompt saver, and dynamic text utility with optional Easy-Use integration."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "GPL-3.0-only" }
+license = { file = "LICENSE" }
 dependencies = ["piexif"]
+
+[project.urls]
+Repository = "https://github.com/nobinBB/comfyui-easy-use-anima"
+Documentation = "https://github.com/nobinBB/comfyui-easy-use-anima#readme"
+"Bug Tracker" = "https://github.com/nobinBB/comfyui-easy-use-anima/issues"
+
+[tool.comfy]
+PublisherId = "nobin"
+DisplayName = "Easy Use Anima"

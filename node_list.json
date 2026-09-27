@@ -1,0 +1,10 @@
+{
+  "easy animaLoaderV2": "Loads an Anima diffusion model or full checkpoint and creates an Easy-Use-compatible pipeline.",
+  "easy animaPromptSaver": "Saves generated images with Anima model, sampler, scheduler, prompt, and generation metadata.",
+  "easy animaFullKSampler": "Samples an Easy-Use-compatible pipeline and exposes sampler, scheduler, steps, CFG, and seed metadata.",
+  "easy animaDynamicTextHub": "Combines multiple dynamic text boxes and expands random choice syntax.",
+  "easy animaLatentUpscaleWithVAEBy": "Decodes, resizes, and re-encodes a latent with the selected VAE.",
+  "easy animaScheduleLorasTwoText": "Adds two text boxes and text outputs to Prompt Control Schedule LoRAs.",
+  "easy animaNegativeWildcardProcessorPlus": "Moves only marked negative wildcard text while preserving LoRA tags and unrelated angle-bracket syntax.",
+  "TornEdgeLines": "Generates two seeded torn-paper-style lines as an image and mask."
+}
