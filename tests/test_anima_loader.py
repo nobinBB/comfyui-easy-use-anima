@@ -195,7 +195,17 @@ class AnimaLoaderTests(unittest.TestCase):
             batch_size=2,
         )
 
-        pipe, model, vae, clip, latent, model_name, vae_name = result
+        (
+            pipe,
+            model,
+            vae,
+            clip,
+            latent,
+            model_name,
+            vae_name,
+            model_string,
+            model_vae,
+        ) = result
         self.assertEqual(vae.latent_channels, 16)
         self.assertIs(pipe["clip"], clip)
         self.assertIsNone(pipe["positive"])
@@ -203,6 +213,8 @@ class AnimaLoaderTests(unittest.TestCase):
         self.assertEqual(latent["samples"], (896, 1152, 2))
         self.assertEqual(model_name, self.anima_name)
         self.assertEqual(vae_name, "qwen_vae.safetensors")
+        self.assertEqual(model_string, "custom_model")
+        self.assertEqual(model_vae, "qwen_vae")
         self.assertEqual(pipe["loader_settings"]["model_family"], "anima")
         self.assertEqual(pipe["loader_settings"]["source_mode"], "separate_files")
 
@@ -220,12 +232,24 @@ class AnimaLoaderTests(unittest.TestCase):
             checkPoint=self.anima_checkpoint_name,
         )
 
-        pipe, model, vae, clip, latent, model_name, vae_name = result
+        (
+            pipe,
+            model,
+            vae,
+            clip,
+            latent,
+            model_name,
+            vae_name,
+            model_string,
+            model_vae,
+        ) = result
         self.assertIs(pipe["model"], model)
         self.assertIs(pipe["clip"], clip)
         self.assertIs(pipe["vae"], vae)
         self.assertEqual(model_name, self.anima_checkpoint_name)
         self.assertEqual(vae_name, self.module.BAKED_VAE)
+        self.assertEqual(model_string, "anima_checkpoint")
+        self.assertEqual(model_vae, self.module.BAKED_VAE)
         self.assertEqual(pipe["loader_settings"]["source_mode"], "checkpoint")
         self.assertEqual(
             pipe["loader_settings"]["ckpt_name"], self.anima_checkpoint_name
@@ -257,9 +281,21 @@ class AnimaLoaderTests(unittest.TestCase):
         finally:
             self.module.CORE_NODES["CheckpointLoaderSimple"] = original
 
-        pipe, _, _, _, _, model_name, vae_name = result
+        (
+            pipe,
+            _,
+            _,
+            _,
+            _,
+            model_name,
+            vae_name,
+            model_string,
+            model_vae,
+        ) = result
         self.assertEqual(model_name, self.anima_checkpoint_name)
         self.assertEqual(vae_name, "qwen_vae.safetensors")
+        self.assertEqual(model_string, "anima_checkpoint")
+        self.assertEqual(model_vae, "qwen_vae")
         self.assertEqual(pipe["loader_settings"]["clip_name"], "qwen.safetensors")
         self.assertEqual(pipe["loader_settings"]["vae_name"], "qwen_vae.safetensors")
 
@@ -343,6 +379,18 @@ class AnimaLoaderTests(unittest.TestCase):
         self.assertNotIn(self.broken_name, output_types[model_index])
         self.assertIn("qwen_vae.safetensors", output_types[vae_index])
         self.assertIn(self.module.BAKED_VAE, output_types[vae_index])
+
+    def test_outputs_compact_model_and_vae_as_strings(self):
+        output_types = self.module.EasyAnimaFullLoader.RETURN_TYPES
+        output_names = self.module.EasyAnimaFullLoader.RETURN_NAMES
+        self.assertEqual(output_types[output_names.index("model_string")], "STRING")
+        self.assertEqual(output_types[output_names.index("model_vae")], "STRING")
+        self.assertEqual(
+            self.module._compact_file_name(
+                r"Anima\nested\anima_aestheticV11.safetensors"
+            ),
+            "anima_aestheticV11",
+        )
 
     def test_model_combo_detects_architecture_not_path_or_filename(self):
         model_names = self.module.EasyAnimaFullLoader.INPUT_TYPES()["required"][

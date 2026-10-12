@@ -100,6 +100,11 @@ def _format_resolutions(base_resolutions: list[tuple[Any, Any]]) -> list[str]:
 ANIMA_RESOLUTIONS = _format_resolutions(_read_easy_use_base_resolutions())
 
 
+def _compact_file_name(name: str) -> str:
+    normalized = str(name).replace("\\", "/")
+    return Path(normalized.rsplit("/", maxsplit=1)[-1]).stem
+
+
 def _vae_input_options() -> tuple[list[str], dict[str, Any]]:
     names = folder_paths.get_filename_list("vae")
     qwen_names = [name for name in names if "qwen" in name.lower()]
@@ -253,6 +258,8 @@ class EasyAnimaFullLoader:
         "LATENT",
         anima_source_names(),
         [BAKED_VAE, *folder_paths.get_filename_list("vae")],
+        "STRING",
+        "STRING",
     )
     RETURN_NAMES = (
         "pipe",
@@ -262,6 +269,8 @@ class EasyAnimaFullLoader:
         "latent",
         "model_name",
         "vae_name",
+        "model_string",
+        "model_vae",
     )
     FUNCTION = "load_anima"
     CATEGORY = "EasyUse-Anima/Loaders"
@@ -367,6 +376,8 @@ class EasyAnimaFullLoader:
             latent,
             effective_model_name,
             effective_vae_name,
+            _compact_file_name(effective_model_name),
+            _compact_file_name(effective_vae_name),
         )
 
 
